@@ -235,6 +235,11 @@
             <input type="number" id="tankCap" value="400" step="10" oninput="recalc()">
           </div>
         </div>
+        <div class="slider-row">
+          <div class="slider-head"><span>Tanker capacity</span><span class="slider-val" id="truckCapVal">45 m³</span></div>
+          <input type="range" id="truckCap" min="20" max="60" value="45" step="1" oninput="recalc()">
+          <div class="toggle-note" id="truckCapNote" style="margin-top:8px;"></div>
+        </div>
         <div id="hybridFields" style="display:none;">
           <div class="row2">
             <div class="field">
@@ -322,7 +327,7 @@
           <div class="value" id="outActualCost">–</div>
           <div class="sub" id="outActualCostSub">at current trigger</div>
         </div>
-        <div class="stat-card teal">
+        <div class="stat-card teal" id="tripsCard">
           <div class="label">Truck Trips / Year</div>
           <div class="value" id="outTripsSaved">–</div>
           <div class="sub" id="outTripsSub">fewer trips with sensor</div>
@@ -408,7 +413,7 @@
       </div>
 
       <div class="foot-note">
-        <strong>Methodology:</strong> Trip count = 365 × daily rate ÷ (tank capacity × trigger%), calculated independently for oil and water tanks. Under <em>metered</em> billing, the annual hauling invoice is fixed at (oil + water m³/d) × 365 × rate — the trigger% changes trip count only, not cost. Under <em>flat fee per trip</em>, each truck visit is billed at the entered flat-fee amount regardless of actual fill, so raising the trigger% reduces both trips and total spend proportionally. Under <em>hourly + minimum</em>, each trip bills max(hours per trip, minimum hours) × hourly rate + mobilization, plus a separate $/m³ disposal charge on actual volume — trips drive the hourly/mobilization portion down, while the disposal portion stays fixed, same as metered. Under <em>$/m³ + wait time</em>, each trip bills wait time × hourly rate, plus a separate $/m³ disposal charge on actual volume — trips drive the wait-time portion down, while the disposal portion stays fixed. 1 bbl = 0.158987 m³.
+        <strong>Methodology:</strong> Trip count = 365 × daily rate ÷ (tank capacity × trigger%) × loads/visit, calculated independently for oil and water tanks. Loads/visit = ceil(pickup volume ÷ tanker capacity) — if the volume in the tank at the pickup trigger exceeds a single truckload, the visit requires multiple truck loads, which multiplies the trip count (and any per-trip billing) accordingly. Under <em>metered</em> billing, the annual hauling invoice is fixed at (oil + water m³/d) × 365 × rate — the trigger% changes trip count only, not cost. Under <em>flat fee per trip</em>, each truck visit is billed at the entered flat-fee amount regardless of actual fill, so raising the trigger% reduces both trips and total spend proportionally. Under <em>hourly + minimum</em>, each trip bills max(hours per trip, minimum hours) × hourly rate + mobilization, plus a separate $/m³ disposal charge on actual volume — trips drive the hourly/mobilization portion down, while the disposal portion stays fixed, same as metered. Under <em>$/m³ + wait time</em>, each trip bills wait time × hourly rate, plus a separate $/m³ disposal charge on actual volume — trips drive the wait-time portion down, while the disposal portion stays fixed. 1 bbl = 0.158987 m³.
       </div>
     </div>
   </div>
@@ -453,8 +458,11 @@ function recalc(){
   const waterRate = val('waterRate');
   const haulRate = val('haulRate');
   const tankCap = val('tankCap');
+  const truckCap = val('truckCap');
   const fillOld = val('fillOld');
   const fillNew = val('fillNew');
+
+  document.getElementById('truckCapVal').textContent = truckCap+' m³';
   const wellSites = val('wellSites');
   const tanksPerSite = val('tanksPerSite');
   const installCost = val('installCost');
@@ -476,32 +484,50 @@ function recalc(){
   const totalM3d = totalOilM3d+totalWaterM3d;
   const boeD = oilRate; // oil-only basis — no gas input
 
-  // ---- trip counts (physical, billing-independent) ----
-  const tripsOldOil = pickupOldBbl>0 ? 365*oilRate/pickupOldBbl : 0;
-  const tripsNewOil = pickupNewBbl>0 ? 365*oilRate/pickupNewBbl : 0;
-  const tripsOldWater = pickupOldBbl>0 ? 365*waterRate/pickupOldBbl : 0;
-  const tripsNewWater = pickupNewBbl>0 ? 365*waterRate/pickupNewBbl : 0;
+  // ---- tanker capacity: a pickup volume larger than one truckload needs multiple loads per visit ----
+  const pickupOldM3 = pickupOldBbl*BBL_TO_M3;
+  const pickupNewM3 = pickupNewBbl*BBL_TO_M3;
+  const loadsOld = truckCap>0 ? Math.max(1, Math.ceil(pickupOldM3/truckCap)) : 1;
+  const loadsNew = truckCap>0 ? Math.max(1, Math.ceil(pickupNewM3/truckCap)) : 1;
+
+  const truckCapNote = document.getElementById('truckCapNote');
+  truckCapNote.innerHTML = 'Current trigger: '+pickupOldM3.toFixed(1)+' m³/visit → <strong>'+loadsOld+' load'+(loadsOld>1?'s':'')+'</strong>'+(loadsOld>1?' <span style="color:var(--rust)">(exceeds tanker capacity)</span>':'')
+    + '<br>Target trigger: '+pickupNewM3.toFixed(1)+' m³/visit → <strong>'+loadsNew+' load'+(loadsNew>1?'s':'')+'</strong>'+(loadsNew>1?' <span style="color:var(--rust)">(exceeds tanker capacity — trip savings will be diluted)</span>':'');
+
+  // ---- trip counts (physical, billing-independent) — each visit may need >1 truckload if pickup volume exceeds tanker capacity ----
+  const tripsOldOil = pickupOldBbl>0 ? (365*oilRate/pickupOldBbl)*loadsOld : 0;
+  const tripsNewOil = pickupNewBbl>0 ? (365*oilRate/pickupNewBbl)*loadsNew : 0;
+  const tripsOldWater = pickupOldBbl>0 ? (365*waterRate/pickupOldBbl)*loadsOld : 0;
+  const tripsNewWater = pickupNewBbl>0 ? (365*waterRate/pickupNewBbl)*loadsNew : 0;
   const tripsOldTotal = tripsOldOil+tripsOldWater;
   const tripsNewTotal = tripsNewOil+tripsNewWater;
   const tripsSaved = tripsOldTotal-tripsNewTotal;
   const pctTripReduction = tripsOldTotal>0 ? (tripsSaved/tripsOldTotal*100) : 0;
 
+  const savOilEl = document.getElementById('tSavOil');
+  savOilEl.textContent = fmtNum(tripsOldOil-tripsNewOil);
+  savOilEl.className = 'num '+((tripsOldOil-tripsNewOil)>=0?'pos':'neg');
+  const savWaterEl = document.getElementById('tSavWater');
+  savWaterEl.textContent = fmtNum(tripsOldWater-tripsNewWater);
+  savWaterEl.className = 'num '+((tripsOldWater-tripsNewWater)>=0?'pos':'neg');
+  const savTotalEl = document.getElementById('tSavTotal');
+  savTotalEl.textContent = fmtNum(tripsSaved);
+  savTotalEl.className = 'num '+(tripsSaved>=0?'pos':'neg');
   document.getElementById('tOldOil').textContent = fmtNum(tripsOldOil);
   document.getElementById('tNewOil').textContent = fmtNum(tripsNewOil);
-  document.getElementById('tSavOil').textContent = fmtNum(tripsOldOil-tripsNewOil);
   document.getElementById('tOldWater').textContent = fmtNum(tripsOldWater);
   document.getElementById('tNewWater').textContent = fmtNum(tripsNewWater);
-  document.getElementById('tSavWater').textContent = fmtNum(tripsOldWater-tripsNewWater);
   document.getElementById('tOldTotal').textContent = fmtNum(tripsOldTotal);
   document.getElementById('tNewTotal').textContent = fmtNum(tripsNewTotal);
-  document.getElementById('tSavTotal').textContent = fmtNum(tripsSaved);
 
   const daysOld = oilRate+waterRate>0 ? (pickupOldBbl/(oilRate||0.0001)) : 0;
   document.getElementById('gaugeOldDays').textContent = (waterRate>0 ? (pickupOldBbl/waterRate).toFixed(2)+' d/pickup (water)' : '–');
   document.getElementById('gaugeNewDays').textContent = (waterRate>0 ? (pickupNewBbl/waterRate).toFixed(2)+' d/pickup (water)' : '–');
 
-  document.getElementById('outTripsSaved').textContent = fmtNum(tripsSaved);
-  document.getElementById('outTripsSub').textContent = pctTripReduction.toFixed(1)+'% fewer trips ('+fmtNum(tripsOldTotal)+' → '+fmtNum(tripsNewTotal)+')';
+  const tripDir = tripsSaved>=0 ? 'fewer' : 'more';
+  document.getElementById('tripsCard').className = 'stat-card '+(tripsSaved>=0?'teal':'rust');
+  document.getElementById('outTripsSaved').textContent = fmtNum(Math.abs(tripsSaved));
+  document.getElementById('outTripsSub').textContent = Math.abs(pctTripReduction).toFixed(1)+'% '+tripDir+' trips ('+fmtNum(tripsOldTotal)+' → '+fmtNum(tripsNewTotal)+')';
 
   // ---- billing-model dependent dollar figures ----
   let annualCostOld, annualCostNew, grossSavings;
@@ -522,7 +548,10 @@ function recalc(){
 
     billingArea.innerHTML = '<div class="callout rust"><strong>No direct hauling-fee savings</strong>'
       + 'Under metered billing, the annual hauling bill is fixed at '+fmtUSD(annualCostOld)+'/yr regardless of pickup trigger. '
-      + 'The '+pctTripReduction.toFixed(1)+'% trip reduction ('+fmtNum(tripsSaved)+' fewer trips/yr) is a real operational and HSE benefit — fewer trucks on the road, lower spill/incident exposure, less dispatch coordination — but it will not show up as a lower hauling invoice on its own. The sensor program should be justified on that operational value, or used as leverage to renegotiate toward a per-trip billing structure.</div>';
+      + (tripsSaved>=0
+        ? 'The '+pctTripReduction.toFixed(1)+'% trip reduction ('+fmtNum(tripsSaved)+' fewer trips/yr) is a real operational and HSE benefit — fewer trucks on the road, lower spill/incident exposure, less dispatch coordination — but it will not show up as a lower hauling invoice on its own. The sensor program should be justified on that operational value, or used as leverage to renegotiate toward a per-trip billing structure.'
+        : 'At the target trigger, the pickup volume exceeds a single truckload, so trip count actually <strong>increases</strong> by '+fmtNum(Math.abs(tripsSaved))+' trips/yr (+'+Math.abs(pctTripReduction).toFixed(1)+'%) — lower the target trigger or raise tanker capacity so each visit stays within one truckload.')
+      + '</div>';
 
   } else {
     let annualCostOldOil, annualCostNewOil, annualCostOldWater, annualCostNewWater, noteText;

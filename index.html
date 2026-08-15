@@ -223,7 +223,7 @@
         <h2>Hauling &amp; Tank Inputs</h2>
         <div class="row2">
           <div class="field" id="meteredRateField">
-            <label>Disposal rate <span class="hint">($/m³)</span></label>
+            <label>Cost per m³ <span class="hint">($/m³)</span></label>
             <input type="number" id="haulRate" value="35" step="0.5" oninput="recalc()">
           </div>
           <div class="field" id="flatFeeField" style="display:none;">
@@ -257,6 +257,18 @@
             </div>
           </div>
         </div>
+        <div id="waittimeFields" style="display:none;">
+          <div class="row2">
+            <div class="field">
+              <label>Wait time <span class="hint">(hrs/trip)</span></label>
+              <input type="number" id="waitHours" value="1.5" step="0.25" oninput="recalc()">
+            </div>
+            <div class="field">
+              <label>Hourly rate <span class="hint">($/hr)</span></label>
+              <input type="number" id="waitHourlyRate" value="185" step="5" oninput="recalc()">
+            </div>
+          </div>
+        </div>
         <div class="slider-row">
           <div class="slider-head"><span>Current pickup trigger</span><span class="slider-val" id="fillOldVal">65%</span></div>
           <input type="range" id="fillOld" min="10" max="99" value="65" oninput="recalc()">
@@ -271,6 +283,7 @@
             <button id="btnMetered" class="active" onclick="setBilling('metered')">Metered — $/m³</button>
             <button id="btnFlatfee" onclick="setBilling('flatfee')">Flat fee / trip</button>
             <button id="btnHybrid" onclick="setBilling('hybrid')">Hourly + minimum</button>
+            <button id="btnWaittime" onclick="setBilling('waittime')">$/m³ + Wait Time</button>
           </div>
         </div>
         <div class="toggle-note" id="billingNote"></div>
@@ -395,7 +408,7 @@
       </div>
 
       <div class="foot-note">
-        <strong>Methodology:</strong> Trip count = 365 × daily rate ÷ (tank capacity × trigger%), calculated independently for oil and water tanks. Under <em>metered</em> billing, the annual hauling invoice is fixed at (oil + water m³/d) × 365 × rate — the trigger% changes trip count only, not cost. Under <em>flat fee per trip</em>, each truck visit is billed at the entered flat-fee amount regardless of actual fill, so raising the trigger% reduces both trips and total spend proportionally. Under <em>hourly + minimum</em>, each trip bills max(hours per trip, minimum hours) × hourly rate + mobilization, plus a separate $/m³ disposal charge on actual volume — trips drive the hourly/mobilization portion down, while the disposal portion stays fixed, same as metered. 1 bbl = 0.158987 m³.
+        <strong>Methodology:</strong> Trip count = 365 × daily rate ÷ (tank capacity × trigger%), calculated independently for oil and water tanks. Under <em>metered</em> billing, the annual hauling invoice is fixed at (oil + water m³/d) × 365 × rate — the trigger% changes trip count only, not cost. Under <em>flat fee per trip</em>, each truck visit is billed at the entered flat-fee amount regardless of actual fill, so raising the trigger% reduces both trips and total spend proportionally. Under <em>hourly + minimum</em>, each trip bills max(hours per trip, minimum hours) × hourly rate + mobilization, plus a separate $/m³ disposal charge on actual volume — trips drive the hourly/mobilization portion down, while the disposal portion stays fixed, same as metered. Under <em>$/m³ + wait time</em>, each trip bills wait time × hourly rate, plus a separate $/m³ disposal charge on actual volume — trips drive the wait-time portion down, while the disposal portion stays fixed. 1 bbl = 0.158987 m³.
       </div>
     </div>
   </div>
@@ -415,9 +428,11 @@ function setBilling(mode){
   document.getElementById('btnMetered').classList.toggle('active', mode==='metered');
   document.getElementById('btnFlatfee').classList.toggle('active', mode==='flatfee');
   document.getElementById('btnHybrid').classList.toggle('active', mode==='hybrid');
+  document.getElementById('btnWaittime').classList.toggle('active', mode==='waittime');
   document.getElementById('meteredRateField').style.display = mode==='flatfee' ? 'none' : 'block';
   document.getElementById('flatFeeField').style.display = mode==='flatfee' ? 'block' : 'none';
   document.getElementById('hybridFields').style.display = mode==='hybrid' ? 'block' : 'none';
+  document.getElementById('waittimeFields').style.display = mode==='waittime' ? 'block' : 'none';
   recalc();
 }
 
@@ -520,7 +535,7 @@ function recalc(){
       annualCostNewWater = tripsNewWater*flatFee;
       noteText = "Flat-fee billing: each truck visit is charged "+fmtUSD(flatFee)+" per trip regardless of actual fill. Raising the trigger% reduces trips AND total spend.";
 
-    } else { // hybrid: hourly + minimum-hours call-out + optional mobilization, plus a volumetric disposal fee
+    } else if (billingModel === 'hybrid'){ // hourly + minimum-hours call-out + optional mobilization, plus a volumetric disposal fee
       const hourlyRate = val('hourlyRate');
       const minHours = val('minHours');
       const hoursPerTrip = val('hoursPerTrip');
@@ -538,6 +553,20 @@ function recalc(){
       noteText = "Hourly billing: each trip bills "+billedHours.toFixed(2)+" hrs (max of "+hoursPerTrip.toFixed(2)+" hrs actual, "+minHours.toFixed(2)+" hr minimum) × $"+hourlyRate+"/hr"
         + (mobilization>0 ? " + "+fmtUSD(mobilization)+" mobilization" : "")
         + ", plus $"+haulRate+"/m³ disposal on actual volume. Fewer trips shrink the hourly+mobilization portion; the disposal portion is fixed.";
+
+    } else { // waittime: $/m³ disposal on actual volume, plus wait time × hourly rate per trip
+      const waitHours = val('waitHours');
+      const waitHourlyRate = val('waitHourlyRate');
+      const perTripFixed = waitHours*waitHourlyRate;
+      const volumeCostOil = totalOilM3d*365*haulRate;
+      const volumeCostWater = totalWaterM3d*365*haulRate;
+
+      annualCostOldOil = tripsOldOil*perTripFixed + volumeCostOil;
+      annualCostNewOil = tripsNewOil*perTripFixed + volumeCostOil;
+      annualCostOldWater = tripsOldWater*perTripFixed + volumeCostWater;
+      annualCostNewWater = tripsNewWater*perTripFixed + volumeCostWater;
+
+      noteText = "Wait-time billing: each trip bills "+waitHours.toFixed(2)+" hrs wait time × $"+waitHourlyRate+"/hr, plus $"+haulRate+"/m³ disposal on actual volume. Fewer trips shrink the wait-time portion; the disposal portion is fixed.";
     }
 
     annualCostOld = annualCostOldOil+annualCostOldWater;

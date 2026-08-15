@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fluid Hauling ROI Calculator — EMI CostTrack™</title>
+<meta name="description" content="Model the financial and operational impact of sensor-driven tank pickup timing on oil and water hauling costs — trip counts, billing impact, and sensor program payback.">
+<style>
+  :root{
+    --steel-900:#0F1720;
+    --steel-800:#1B2A38;
+    --steel-700:#27404F;
+    --steel-600:#3D5A6C;
+    --steel-200:#DCE3E7;
+    --steel-100:#EEF2F4;
+    --bg:#F1F3F4;
+    --card:#FFFFFF;
+    --ink:#16212B;
+    --ink-soft:#5A6B76;
+    --amber:#CE7C25;
+    --amber-dark:#A8611A;
+    --teal:#2A7E72;
+    --teal-dark:#1E5E55;
+    --rust:#B4452F;
+    --rust-bg:#FBEBE7;
+    --teal-bg:#E9F4F1;
+    --amber-bg:#FCF0E1;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1320px; margin:0 auto; padding:0 0 60px;}
+
+  /* ---------- HEADER ---------- */
+  header{
+    background:linear-gradient(135deg, var(--steel-900) 0%, var(--steel-700) 65%, var(--steel-600) 100%);
+    color:#fff; padding:28px 32px 24px; position:relative; overflow:hidden;
+    border-bottom:4px solid var(--amber);
+  }
+  header::after{
+    content:""; position:absolute; right:-60px; top:-60px; width:260px; height:260px;
+    border-radius:50%; background:radial-gradient(circle, rgba(206,124,37,0.18), transparent 70%);
+  }
+  .eyebrow{
+    text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:700;
+    color:var(--amber); margin:0 0 6px;
+  }
+  h1{margin:0; font-size:26px; font-weight:800; letter-spacing:-0.01em;}
+  .subtitle{margin:6px 0 0; color:#B8C4CC; font-size:14px;}
+  .header-row{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; position:relative; z-index:1;}
+  .scenario-field{display:flex; flex-direction:column; gap:4px;}
+  .scenario-field label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#93A4AE;}
+  .scenario-field input{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); color:#fff;
+    padding:8px 12px; border-radius:6px; font-size:14px; font-family:var(--sans); min-width:240px;
+  }
+  .print-btn{
+    background:var(--amber); color:#fff; border:none; padding:10px 18px; border-radius:6px;
+    font-weight:700; font-size:13px; cursor:pointer; letter-spacing:.02em;
+  }
+  .print-btn:hover{background:var(--amber-dark);}
+
+  /* ---------- LAYOUT ---------- */
+  .grid{display:grid; grid-template-columns:360px 1fr; gap:24px; padding:24px 32px 0;}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--card); border:1px solid var(--steel-200); border-radius:10px;
+    padding:20px 20px 22px; margin-bottom:20px; box-shadow:0 1px 3px rgba(16,30,40,0.06);
+  }
+  .panel h2{
+    font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-soft);
+    margin:0 0 16px; font-weight:700; border-bottom:1px solid var(--steel-100); padding-bottom:10px;
+  }
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:5px; font-weight:600;}
+  .field .hint{font-size:11px; color:#8B99A2; font-weight:400; margin-left:4px;}
+  .field input[type=number]{
+    width:100%; padding:8px 10px; border:1px solid var(--steel-200); border-radius:6px;
+    font-family:var(--mono); font-size:14px; color:var(--ink); background:#FBFCFC;
+  }
+  .field input[type=number]:focus{outline:2px solid var(--teal); outline-offset:1px; border-color:var(--teal);}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+  .slider-row{margin-bottom:16px;}
+  .slider-row .slider-head{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-soft); font-weight:600; margin-bottom:4px;}
+  .slider-row .slider-val{font-family:var(--mono); color:var(--ink); font-weight:700;}
+  input[type=range]{width:100%; accent-color:var(--teal);}
+
+  .toggle-group{display:flex; border:1px solid var(--steel-200); border-radius:7px; overflow:hidden;}
+  .toggle-group button{
+    flex:1; padding:9px 8px; border:none; background:#fff; color:var(--ink-soft); font-size:12.5px;
+    font-weight:700; cursor:pointer; font-family:var(--sans); line-height:1.3;
+  }
+  .toggle-group button.active{background:var(--steel-800); color:#fff;}
+  .toggle-note{font-size:11.5px; color:var(--ink-soft); margin-top:8px; line-height:1.5; background:var(--steel-100); padding:8px 10px; border-radius:6px;}
+
+  /* ---------- OUTPUT: headline cards ---------- */
+  .headline-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px;}
+  @media (max-width:700px){ .headline-grid{grid-template-columns:1fr;} }
+  .stat-card{
+    background:var(--card); border:1px solid var(--steel-200); border-radius:10px; padding:18px;
+    box-shadow:0 1px 3px rgba(16,30,40,0.06);
+  }
+  .stat-card .label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); font-weight:700;}
+  .stat-card .value{font-family:var(--mono); font-size:26px; font-weight:700; margin-top:8px; color:var(--ink);}
+  .stat-card .sub{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  .stat-card.amber .value{color:var(--amber-dark);}
+  .stat-card.teal .value{color:var(--teal-dark);}
+  .stat-card.rust .value{color:var(--rust);}
+
+  /* ---------- Tank gauges ---------- */
+  .gauge-panel{display:flex; gap:28px; align-items:center; flex-wrap:wrap;}
+  .gauge{text-align:center;}
+  .gauge-label{font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;}
+  .tank-visual{
+    width:110px; height:170px; margin:0 auto; position:relative; border-radius:10px 10px 5px 5px;
+    border:3px solid var(--steel-700); background:#E4E9EB; overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.5);
+  }
+  .tank-visual .rings{
+    position:absolute; inset:0; background-image:repeating-linear-gradient(to bottom, transparent, transparent 27px, rgba(27,42,56,0.08) 27px, rgba(27,42,56,0.08) 29px);
+    pointer-events:none; z-index:2;
+  }
+  .tank-fill{
+    position:absolute; bottom:0; left:0; right:0; height:0%;
+    background:linear-gradient(180deg, #4FA599, var(--teal-dark));
+    transition:height .35s ease;
+  }
+  .tank-fill.old{background:linear-gradient(180deg, #E0A25B, var(--amber-dark));}
+  .tank-pct{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-weight:700; font-size:18px; color:var(--steel-900); z-index:3;
+    text-shadow:0 1px 2px rgba(255,255,255,0.6);
+  }
+  .gauge-days{font-size:11.5px; color:var(--ink-soft); margin-top:8px; font-family:var(--mono);}
+  .gauge-arrow{font-size:26px; color:var(--steel-600); align-self:center;}
+
+  /* ---------- Trip table ---------- */
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th,td{padding:9px 10px; text-align:right; border-bottom:1px solid var(--steel-100);}
+  th:first-child, td:first-child{text-align:left;}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700;}
+  td.num, th.num{font-family:var(--mono);}
+  tr.total td{font-weight:700; border-top:2px solid var(--steel-200); border-bottom:none;}
+  .pos{color:var(--teal-dark); font-weight:700;}
+  .neg{color:var(--rust); font-weight:700;}
+
+  /* ---------- Callout ---------- */
+  .callout{border-radius:8px; padding:16px 18px; margin-top:4px; font-size:13.5px; line-height:1.6;}
+  .callout.rust{background:var(--rust-bg); border:1px solid #E9C7BC; color:#6E2B1B;}
+  .callout.teal{background:var(--teal-bg); border:1px solid #BEE0D8; color:#12463D;}
+  .callout.amber{background:var(--amber-bg); border:1px solid #EED2A8; color:#6B4111;}
+  .callout strong{display:block; margin-bottom:4px; font-size:12.5px; text-transform:uppercase; letter-spacing:.04em;}
+
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:700px){ .two-col{grid-template-columns:1fr;} }
+  .three-col{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
+  @media (max-width:980px){ .three-col{grid-template-columns:1fr 1fr;} }
+  @media (max-width:700px){ .three-col{grid-template-columns:1fr;} }
+
+  .foot-note{font-size:12px; color:var(--ink-soft); line-height:1.7; padding:16px 20px; background:var(--steel-100); border-radius:8px;}
+  .foot-note strong{color:var(--ink);}
+
+  /* ---------- Site footer ---------- */
+  .site-footer{
+    max-width:1320px; margin:8px auto 0; padding:20px 32px 0; text-align:center;
+    border-top:1px solid var(--steel-200);
+  }
+  .site-footer p{font-size:12px; color:var(--ink-soft); line-height:1.8; margin:0 0 4px;}
+  .site-footer a{color:var(--teal-dark); font-weight:600; text-decoration:none;}
+  .site-footer a:hover{text-decoration:underline;}
+  @media print{ .site-footer{display:none;} }
+
+  @media print{
+    .print-btn{display:none;}
+    body{background:#fff;}
+    header{background:var(--steel-900) !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .panel, .stat-card{box-shadow:none; break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="header-row">
+      <div>
+        <p class="eyebrow">EMI CostTrack™ &nbsp;·&nbsp; Fluid Hauling Optimization</p>
+        <h1>Tank Monitoring ROI Calculator</h1>
+        <p class="subtitle">Model the financial and operational impact of sensor-driven pickup timing on oil &amp; water hauling</p>
+      </div>
+      <div style="display:flex; gap:14px; align-items:flex-end;">
+        <div class="scenario-field">
+          <label for="clientName">Scenario / Client</label>
+          <input type="text" id="clientName" value="Primal Resources Ltd.">
+        </div>
+        <button class="print-btn" onclick="window.print()">Print / Export</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- ============ INPUT COLUMN ============ -->
+    <div>
+      <div class="panel">
+        <h2>Production Inputs</h2>
+        <div class="field">
+          <label>Oil rate <span class="hint">(bbl/d)</span></label>
+          <input type="number" id="oilRate" value="122.57" step="0.01" oninput="recalc()">
+        </div>
+        <div class="field">
+          <label>Produced water rate <span class="hint">(bbl/d, injection volumes excluded)</span></label>
+          <input type="number" id="waterRate" value="2311.47" step="0.01" oninput="recalc()">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Hauling &amp; Tank Inputs</h2>
+        <div class="row2">
+          <div class="field" id="meteredRateField">
+            <label>Disposal rate <span class="hint">($/m³)</span></label>
+            <input type="number" id="haulRate" value="35" step="0.5" oninput="recalc()">
+          </div>
+          <div class="field" id="flatFeeField" style="display:none;">
+            <label>Flat fee <span class="hint">($/truck visit)</span></label>
+            <input type="number" id="flatFeeAmount" value="2225.82" step="10" oninput="recalc()">
+          </div>
+          <div class="field">
+            <label>Tank capacity <span class="hint">(bbl)</span></label>
+            <input type="number" id="tankCap" value="400" step="10" oninput="recalc()">
+          </div>
+        </div>
+        <div id="hybridFields" style="display:none;">
+          <div class="row2">
+            <div class="field">
+              <label>Hourly rate <span class="hint">($/hr)</span></label>
+              <input type="number" id="hourlyRate" value="185" step="5" oninput="recalc()">
+            </div>
+            <div class="field">
+              <label>Minimum hours <span class="hint">(per call-out)</span></label>
+              <input type="number" id="minHours" value="2" step="0.5" oninput="recalc()">
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label>Hours per trip <span class="hint">(portal-to-portal)</span></label>
+              <input type="number" id="hoursPerTrip" value="1.5" step="0.25" oninput="recalc()">
+            </div>
+            <div class="field">
+              <label>Mobilization fee <span class="hint">($/trip, if separate)</span></label>
+              <input type="number" id="mobilizationFee" value="0" step="10" oninput="recalc()">
+            </div>
+          </div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-head"><span>Current pickup trigger</span><span class="slider-val" id="fillOldVal">65%</span></div>
+          <input type="range" id="fillOld" min="10" max="99" value="65" oninput="recalc()">
+        </div>
+        <div class="slider-row">
+          <div class="slider-head"><span>Target pickup trigger (with sensor)</span><span class="slider-val" id="fillNewVal">90%</span></div>
+          <input type="range" id="fillNew" min="10" max="99" value="90" oninput="recalc()">
+        </div>
+        <div class="field" style="margin-bottom:6px;">
+          <label>Hauler billing model</label>
+          <div class="toggle-group">
+            <button id="btnMetered" class="active" onclick="setBilling('metered')">Metered — $/m³</button>
+            <button id="btnFlatfee" onclick="setBilling('flatfee')">Flat fee / trip</button>
+            <button id="btnHybrid" onclick="setBilling('hybrid')">Hourly + minimum</button>
+          </div>
+        </div>
+        <div class="toggle-note" id="billingNote"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Sensor Program Inputs</h2>
+        <div class="row2">
+          <div class="field">
+            <label>Producing well sites</label>
+            <input type="number" id="wellSites" value="38" step="1" oninput="recalc()">
+          </div>
+          <div class="field">
+            <label>Tanks per well site</label>
+            <input type="number" id="tanksPerSite" value="2" step="1" oninput="recalc()">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Install cost <span class="hint">($/tank)</span></label>
+            <input type="number" id="installCost" value="1500" step="50" oninput="recalc()">
+          </div>
+          <div class="field">
+            <label>Monitoring cost <span class="hint">($/tank/month)</span></label>
+            <input type="number" id="monitorCost" value="30" step="1" oninput="recalc()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OUTPUT COLUMN ============ -->
+    <div>
+      <div class="headline-grid">
+        <div class="stat-card">
+          <div class="label">Actual Annual Hauling Cost</div>
+          <div class="value" id="outActualCost">–</div>
+          <div class="sub" id="outActualCostSub">at current trigger</div>
+        </div>
+        <div class="stat-card teal">
+          <div class="label">Truck Trips / Year</div>
+          <div class="value" id="outTripsSaved">–</div>
+          <div class="sub" id="outTripsSub">fewer trips with sensor</div>
+        </div>
+        <div class="stat-card" id="dollarCard">
+          <div class="label">Gross Hauling $ Savings / Year</div>
+          <div class="value" id="outGrossSavings">–</div>
+          <div class="sub" id="outGrossSavingsSub">from higher fill efficiency</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Tank Fill — Pickup Trigger Comparison</h2>
+        <div class="gauge-panel">
+          <div class="gauge">
+            <div class="gauge-label">Current</div>
+            <div class="tank-visual"><div class="rings"></div><div class="tank-fill old" id="tankOld"></div><div class="tank-pct" id="tankOldPct">65%</div></div>
+            <div class="gauge-days" id="gaugeOldDays">–</div>
+          </div>
+          <div class="gauge-arrow">→</div>
+          <div class="gauge">
+            <div class="gauge-label">With Sensor</div>
+            <div class="tank-visual"><div class="rings"></div><div class="tank-fill" id="tankNew"></div><div class="tank-pct" id="tankNewPct">90%</div></div>
+            <div class="gauge-days" id="gaugeNewDays">–</div>
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <table>
+              <thead><tr><th>Stream</th><th class="num">Trips/yr (old)</th><th class="num">Trips/yr (new)</th><th class="num">Saved</th></tr></thead>
+              <tbody>
+                <tr><td>Oil</td><td class="num" id="tOldOil">–</td><td class="num" id="tNewOil">–</td><td class="num pos" id="tSavOil">–</td></tr>
+                <tr><td>Water</td><td class="num" id="tOldWater">–</td><td class="num" id="tNewWater">–</td><td class="num pos" id="tSavWater">–</td></tr>
+                <tr class="total"><td>Total</td><td class="num" id="tOldTotal">–</td><td class="num" id="tNewTotal">–</td><td class="num pos" id="tSavTotal">–</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Billing Impact</h2>
+        <div id="billingImpactArea"></div>
+      </div>
+
+      <div class="three-col">
+        <div class="panel">
+          <h2>Sensor Program Economics</h2>
+          <table>
+            <tbody>
+              <tr><td>Tanks (sites × tanks/site)</td><td class="num" id="econTanks">–</td></tr>
+              <tr><td>Install capex (one-time)</td><td class="num" id="econCapex">–</td></tr>
+              <tr><td>Monitoring cost / year</td><td class="num" id="econMonitor">–</td></tr>
+              <tr><td>Gross hauling savings / year</td><td class="num" id="econGross">–</td></tr>
+              <tr class="total"><td>Net result — Year 1</td><td class="num" id="econNetY1">–</td></tr>
+              <tr class="total"><td>Net result — ongoing / year</td><td class="num" id="econNetOngoing">–</td></tr>
+              <tr><td>Payback period</td><td class="num" id="econPayback">–</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h2>Per-Bbl (Oil) Impact</h2>
+          <table>
+            <tbody>
+              <tr><td>Production basis</td><td class="num" id="boeBasis">–</td></tr>
+              <tr><td>Gross hauling $/bbl oil saved</td><td class="num" id="boeGross">–</td></tr>
+              <tr class="total"><td>Net $/bbl oil saved (after monitoring)</td><td class="num" id="boeNet">–</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h2>Per-Bbl (Water) Impact</h2>
+          <table>
+            <tbody>
+              <tr><td>Production basis</td><td class="num" id="waterBasis">–</td></tr>
+              <tr><td>Gross hauling $/bbl water saved</td><td class="num" id="waterGross">–</td></tr>
+              <tr class="total"><td>Net $/bbl water saved (after monitoring)</td><td class="num" id="waterNet">–</td></tr>
+            </tbody>
+          </table>
+          <div class="callout amber" style="margin-top:14px;">
+            <strong>Data note</strong>
+            Trip counts are a portfolio-level approximation on a uniform tank size. Very high water-cut wells may fill a standard tank in under a day — those wells likely warrant well-specific tank sizing or continuous disposal rather than this shared assumption.
+          </div>
+        </div>
+      </div>
+
+      <div class="foot-note">
+        <strong>Methodology:</strong> Trip count = 365 × daily rate ÷ (tank capacity × trigger%), calculated independently for oil and water tanks. Under <em>metered</em> billing, the annual hauling invoice is fixed at (oil + water m³/d) × 365 × rate — the trigger% changes trip count only, not cost. Under <em>flat fee per trip</em>, each truck visit is billed at the entered flat-fee amount regardless of actual fill, so raising the trigger% reduces both trips and total spend proportionally. Under <em>hourly + minimum</em>, each trip bills max(hours per trip, minimum hours) × hourly rate + mobilization, plus a separate $/m³ disposal charge on actual volume — trips drive the hourly/mobilization portion down, while the disposal portion stays fixed, same as metered. 1 bbl = 0.158987 m³.
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>Prepared by <a href="mailto:chris@impacthydrogensolutions.com?subject=Fluid%20Hauling%20ROI%20Review">Impact Hydrogen Solutions</a> &nbsp;·&nbsp; Calgary, Alberta &nbsp;·&nbsp; Serving Western Canada</p>
+    <p>Figures are illustrative estimates based on the inputs above and should be validated against actual hauling invoices and field data before use in a capital decision.</p>
+  </footer>
+</div>
+
+<script>
+const BBL_TO_M3 = 0.158987;
+let billingModel = 'metered';
+
+function setBilling(mode){
+  billingModel = mode;
+  document.getElementById('btnMetered').classList.toggle('active', mode==='metered');
+  document.getElementById('btnFlatfee').classList.toggle('active', mode==='flatfee');
+  document.getElementById('btnHybrid').classList.toggle('active', mode==='hybrid');
+  document.getElementById('meteredRateField').style.display = mode==='flatfee' ? 'none' : 'block';
+  document.getElementById('flatFeeField').style.display = mode==='flatfee' ? 'block' : 'none';
+  document.getElementById('hybridFields').style.display = mode==='hybrid' ? 'block' : 'none';
+  recalc();
+}
+
+function fmtUSD(n, decimals){
+  decimals = decimals===undefined?0:decimals;
+  const sign = n<0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+}
+function fmtNum(n, decimals){
+  decimals = decimals===undefined?0:decimals;
+  return n.toLocaleString(undefined,{minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+}
+
+function val(id){ return parseFloat(document.getElementById(id).value) || 0; }
+
+function recalc(){
+  const oilRate = val('oilRate');
+  const waterRate = val('waterRate');
+  const haulRate = val('haulRate');
+  const tankCap = val('tankCap');
+  const fillOld = val('fillOld');
+  const fillNew = val('fillNew');
+  const wellSites = val('wellSites');
+  const tanksPerSite = val('tanksPerSite');
+  const installCost = val('installCost');
+  const monitorCost = val('monitorCost');
+
+  document.getElementById('fillOldVal').textContent = fillOld+'%';
+  document.getElementById('fillNewVal').textContent = fillNew+'%';
+  document.getElementById('tankOld').style.height = fillOld+'%';
+  document.getElementById('tankNew').style.height = fillNew+'%';
+  document.getElementById('tankOldPct').textContent = fillOld+'%';
+  document.getElementById('tankNewPct').textContent = fillNew+'%';
+
+  const fillOldFrac = fillOld/100, fillNewFrac = fillNew/100;
+  const pickupOldBbl = tankCap*fillOldFrac;
+  const pickupNewBbl = tankCap*fillNewFrac;
+
+  const totalOilM3d = oilRate*BBL_TO_M3;
+  const totalWaterM3d = waterRate*BBL_TO_M3;
+  const totalM3d = totalOilM3d+totalWaterM3d;
+  const boeD = oilRate; // oil-only basis — no gas input
+
+  // ---- trip counts (physical, billing-independent) ----
+  const tripsOldOil = pickupOldBbl>0 ? 365*oilRate/pickupOldBbl : 0;
+  const tripsNewOil = pickupNewBbl>0 ? 365*oilRate/pickupNewBbl : 0;
+  const tripsOldWater = pickupOldBbl>0 ? 365*waterRate/pickupOldBbl : 0;
+  const tripsNewWater = pickupNewBbl>0 ? 365*waterRate/pickupNewBbl : 0;
+  const tripsOldTotal = tripsOldOil+tripsOldWater;
+  const tripsNewTotal = tripsNewOil+tripsNewWater;
+  const tripsSaved = tripsOldTotal-tripsNewTotal;
+  const pctTripReduction = tripsOldTotal>0 ? (tripsSaved/tripsOldTotal*100) : 0;
+
+  document.getElementById('tOldOil').textContent = fmtNum(tripsOldOil);
+  document.getElementById('tNewOil').textContent = fmtNum(tripsNewOil);
+  document.getElementById('tSavOil').textContent = fmtNum(tripsOldOil-tripsNewOil);
+  document.getElementById('tOldWater').textContent = fmtNum(tripsOldWater);
+  document.getElementById('tNewWater').textContent = fmtNum(tripsNewWater);
+  document.getElementById('tSavWater').textContent = fmtNum(tripsOldWater-tripsNewWater);
+  document.getElementById('tOldTotal').textContent = fmtNum(tripsOldTotal);
+  document.getElementById('tNewTotal').textContent = fmtNum(tripsNewTotal);
+  document.getElementById('tSavTotal').textContent = fmtNum(tripsSaved);
+
+  const daysOld = oilRate+waterRate>0 ? (pickupOldBbl/(oilRate||0.0001)) : 0;
+  document.getElementById('gaugeOldDays').textContent = (waterRate>0 ? (pickupOldBbl/waterRate).toFixed(2)+' d/pickup (water)' : '–');
+  document.getElementById('gaugeNewDays').textContent = (waterRate>0 ? (pickupNewBbl/waterRate).toFixed(2)+' d/pickup (water)' : '–');
+
+  document.getElementById('outTripsSaved').textContent = fmtNum(tripsSaved);
+  document.getElementById('outTripsSub').textContent = pctTripReduction.toFixed(1)+'% fewer trips ('+fmtNum(tripsOldTotal)+' → '+fmtNum(tripsNewTotal)+')';
+
+  // ---- billing-model dependent dollar figures ----
+  let annualCostOld, annualCostNew, grossSavings;
+  const billingArea = document.getElementById('billingImpactArea');
+  const dollarCard = document.getElementById('dollarCard');
+
+  if (billingModel === 'metered'){
+    annualCostOld = totalM3d*365*haulRate;
+    annualCostNew = annualCostOld;
+    grossSavings = 0;
+
+    document.getElementById('billingNote').textContent = "Metered billing: the invoice is (m³ hauled) × $"+haulRate+"/m³, regardless of trip size. Raising the trigger% reduces trips but NOT the dollar total.";
+    document.getElementById('outActualCost').textContent = fmtUSD(annualCostOld);
+    document.getElementById('outActualCostSub').textContent = 'fixed — unaffected by trigger %';
+    document.getElementById('outGrossSavings').textContent = fmtUSD(0);
+    document.getElementById('outGrossSavingsSub').textContent = 'no direct $ savings under metered billing';
+    dollarCard.className = 'stat-card rust';
+
+    billingArea.innerHTML = '<div class="callout rust"><strong>No direct hauling-fee savings</strong>'
+      + 'Under metered billing, the annual hauling bill is fixed at '+fmtUSD(annualCostOld)+'/yr regardless of pickup trigger. '
+      + 'The '+pctTripReduction.toFixed(1)+'% trip reduction ('+fmtNum(tripsSaved)+' fewer trips/yr) is a real operational and HSE benefit — fewer trucks on the road, lower spill/incident exposure, less dispatch coordination — but it will not show up as a lower hauling invoice on its own. The sensor program should be justified on that operational value, or used as leverage to renegotiate toward a per-trip billing structure.</div>';
+
+  } else {
+    let annualCostOldOil, annualCostNewOil, annualCostOldWater, annualCostNewWater, noteText;
+
+    if (billingModel === 'flatfee'){
+      const flatFee = val('flatFeeAmount');
+      annualCostOldOil = tripsOldOil*flatFee;
+      annualCostNewOil = tripsNewOil*flatFee;
+      annualCostOldWater = tripsOldWater*flatFee;
+      annualCostNewWater = tripsNewWater*flatFee;
+      noteText = "Flat-fee billing: each truck visit is charged "+fmtUSD(flatFee)+" per trip regardless of actual fill. Raising the trigger% reduces trips AND total spend.";
+
+    } else { // hybrid: hourly + minimum-hours call-out + optional mobilization, plus a volumetric disposal fee
+      const hourlyRate = val('hourlyRate');
+      const minHours = val('minHours');
+      const hoursPerTrip = val('hoursPerTrip');
+      const mobilization = val('mobilizationFee');
+      const billedHours = Math.max(hoursPerTrip, minHours);
+      const perTripFixed = billedHours*hourlyRate + mobilization;
+      const volumeCostOil = totalOilM3d*365*haulRate;
+      const volumeCostWater = totalWaterM3d*365*haulRate;
+
+      annualCostOldOil = tripsOldOil*perTripFixed + volumeCostOil;
+      annualCostNewOil = tripsNewOil*perTripFixed + volumeCostOil;
+      annualCostOldWater = tripsOldWater*perTripFixed + volumeCostWater;
+      annualCostNewWater = tripsNewWater*perTripFixed + volumeCostWater;
+
+      noteText = "Hourly billing: each trip bills "+billedHours.toFixed(2)+" hrs (max of "+hoursPerTrip.toFixed(2)+" hrs actual, "+minHours.toFixed(2)+" hr minimum) × $"+hourlyRate+"/hr"
+        + (mobilization>0 ? " + "+fmtUSD(mobilization)+" mobilization" : "")
+        + ", plus $"+haulRate+"/m³ disposal on actual volume. Fewer trips shrink the hourly+mobilization portion; the disposal portion is fixed.";
+    }
+
+    annualCostOld = annualCostOldOil+annualCostOldWater;
+    annualCostNew = annualCostNewOil+annualCostNewWater;
+    grossSavings = annualCostOld-annualCostNew;
+
+    document.getElementById('billingNote').textContent = noteText;
+    document.getElementById('outActualCost').textContent = fmtUSD(annualCostOld);
+    document.getElementById('outActualCostSub').textContent = 'at current trigger — drops to '+fmtUSD(annualCostNew)+' with sensor';
+    document.getElementById('outGrossSavings').textContent = fmtUSD(grossSavings);
+    document.getElementById('outGrossSavingsSub').textContent = ((grossSavings/annualCostOld)*100 || 0).toFixed(1)+'% reduction in hauling spend';
+    dollarCard.className = 'stat-card teal';
+
+    billingArea.innerHTML = '<table><thead><tr><th>Stream</th><th class="num">Current $/yr</th><th class="num">New $/yr</th><th class="num">Savings $/yr</th></tr></thead><tbody>'
+      + '<tr><td>Oil</td><td class="num">'+fmtUSD(annualCostOldOil)+'</td><td class="num">'+fmtUSD(annualCostNewOil)+'</td><td class="num pos">'+fmtUSD(annualCostOldOil-annualCostNewOil)+'</td></tr>'
+      + '<tr><td>Water</td><td class="num">'+fmtUSD(annualCostOldWater)+'</td><td class="num">'+fmtUSD(annualCostNewWater)+'</td><td class="num pos">'+fmtUSD(annualCostOldWater-annualCostNewWater)+'</td></tr>'
+      + '<tr class="total"><td>Total</td><td class="num">'+fmtUSD(annualCostOld)+'</td><td class="num">'+fmtUSD(annualCostNew)+'</td><td class="num pos">'+fmtUSD(grossSavings)+'</td></tr>'
+      + '</tbody></table><div class="callout teal" style="margin-top:14px;"><strong>Direct hauling-fee savings apply</strong>The trip-driven portion of the bill drops with fewer/larger loads — this is the case where the sensor program can pay for itself from hauling costs alone.</div>';
+  }
+
+  // ---- sensor program economics ----
+  const nTanks = wellSites*tanksPerSite;
+  const capex = nTanks*installCost;
+  const monitorAnnual = nTanks*monitorCost*12;
+  const netAnnual = grossSavings-monitorAnnual;
+  const netY1 = grossSavings-capex-monitorAnnual;
+
+  document.getElementById('econTanks').textContent = fmtNum(nTanks)+' ('+fmtNum(wellSites)+' sites × '+fmtNum(tanksPerSite)+')';
+  document.getElementById('econCapex').textContent = fmtUSD(capex);
+  document.getElementById('econMonitor').textContent = fmtUSD(monitorAnnual);
+  document.getElementById('econGross').textContent = fmtUSD(grossSavings);
+  const netY1El = document.getElementById('econNetY1');
+  netY1El.textContent = fmtUSD(netY1);
+  netY1El.className = 'num '+(netY1>=0?'pos':'neg');
+  const netOngoingEl = document.getElementById('econNetOngoing');
+  netOngoingEl.textContent = fmtUSD(netAnnual);
+  netOngoingEl.className = 'num '+(netAnnual>=0?'pos':'neg');
+
+  const paybackEl = document.getElementById('econPayback');
+  if (netAnnual>0 && capex>0){
+    const paybackMonths = capex/(netAnnual/12);
+    paybackEl.textContent = paybackMonths<1 ? (paybackMonths*30.4).toFixed(0)+' days' : paybackMonths.toFixed(1)+' months';
+  } else if (capex===0){
+    paybackEl.textContent = 'n/a (no capex)';
+  } else {
+    paybackEl.textContent = 'Does not pay back from hauling fees alone';
+  }
+
+  // ---- per BOE ----
+  const annualBOE = boeD*365;
+  document.getElementById('boeBasis').textContent = fmtNum(boeD,1)+' bbl/d (oil)';
+  document.getElementById('boeGross').textContent = annualBOE>0 ? fmtUSD(grossSavings/annualBOE,2) : '–';
+  const boeNetEl = document.getElementById('boeNet');
+  const boeNetVal = annualBOE>0 ? netAnnual/annualBOE : 0;
+  boeNetEl.textContent = fmtUSD(boeNetVal,2);
+  boeNetEl.className = 'num '+(boeNetVal>=0?'pos':'neg');
+
+  const annualWaterVol = waterRate*365;
+  document.getElementById('waterBasis').textContent = fmtNum(waterRate,1)+' bbl/d (water)';
+  document.getElementById('waterGross').textContent = annualWaterVol>0 ? fmtUSD(grossSavings/annualWaterVol,2) : '–';
+  const waterNetEl = document.getElementById('waterNet');
+  const waterNetVal = annualWaterVol>0 ? netAnnual/annualWaterVol : 0;
+  waterNetEl.textContent = fmtUSD(waterNetVal,2);
+  waterNetEl.className = 'num '+(waterNetVal>=0?'pos':'neg');
+}
+
+recalc();
+</script>
+</body>
+</html>
